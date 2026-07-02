@@ -1,0 +1,10 @@
+# Core (obbligatorio)
+numpy>=1.26
+PyYAML>=6.0
+
+# Dati e trading live (fortemente consigliato; senza ccxt funziona solo
+# il fallback REST pubblico di Binance)
+ccxt>=4.0
+
+# Sviluppo
+pytest>=7.0

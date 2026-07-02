@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MiroFish Consensus Engine — Dashboard</title>
+<style>
+  :root{
+    --paper:#f4f2ec; --panel:#faf9f5; --ink:#1a1a18; --dim:#8a8778;
+    --line:#dcd9cd; --red:#c0392b; --green:#1e8449; --accent:#111;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#e8e6df;color:var(--ink);
+       font-family:"JetBrains Mono","IBM Plex Mono",ui-monospace,Menlo,monospace;
+       font-size:12px;padding:14px;}
+  .frame{max-width:1120px;margin:0 auto;background:var(--paper);
+         border:1px solid var(--line);border-radius:10px;padding:14px;}
+  header{display:flex;align-items:center;gap:12px;padding:4px 6px 12px;}
+  .logo{width:34px;height:34px;border:1.5px solid var(--ink);border-radius:8px;
+        display:flex;align-items:center;justify-content:center;font-size:15px;}
+  .h-title{font-size:9px;letter-spacing:.18em;color:var(--dim);text-transform:uppercase}
+  .h-id{font-size:15px;font-weight:700;letter-spacing:.02em}
+  .spacer{flex:1}
+  .badge{border:1px solid var(--line);border-radius:5px;padding:4px 10px;
+         font-size:10px;letter-spacing:.08em;background:var(--panel);color:var(--dim)}
+  .badge.live{color:var(--green);border-color:#bcd8c6;background:#eef6f0}
+  .badge.paper{color:#8a6d1a;border-color:#e0d3a8;background:#f7f2df}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:8px;
+         padding:12px;margin-bottom:12px;}
+  .ptitle{font-size:9px;letter-spacing:.16em;color:var(--dim);
+          text-transform:uppercase;margin-bottom:10px;display:flex;gap:8px;align-items:center}
+  .pill{border:1px solid var(--line);border-radius:99px;padding:2px 8px;font-size:9px}
+  .grid-top{display:grid;grid-template-columns:1.6fr 1fr;gap:12px}
+  .pnl{font-size:44px;font-weight:700;letter-spacing:.01em;margin:2px 0 8px;
+       font-variant-numeric:tabular-nums}
+  .pnl.neg{color:var(--red)}
+  .statrow{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+  .chip{border:1px solid var(--line);background:var(--paper);border-radius:5px;
+        padding:3px 8px;font-size:10px;color:var(--dim)}
+  .chip b{color:var(--ink)}
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;border-top:1px dashed var(--line);padding-top:10px}
+  .kpi .v{font-size:15px;font-weight:700;font-variant-numeric:tabular-nums}
+  .kpi .l{font-size:8.5px;color:var(--dim);letter-spacing:.1em;text-transform:uppercase}
+  canvas{width:100%;height:auto;display:block}
+  .metrics{display:grid;grid-template-columns:1fr;gap:6px}
+  .mrow{display:flex;justify-content:space-between;border-bottom:1px dashed var(--line);
+        padding:4px 2px;font-variant-numeric:tabular-nums}
+  .mrow .k{color:var(--dim)}
+  .g-green{color:var(--green);font-weight:700}.g-red{color:var(--red);font-weight:700}
+  .graph-wrap{display:grid;grid-template-columns:150px 1fr 190px;gap:12px}
+  .legend{font-size:10px;color:var(--dim);display:flex;flex-direction:column;gap:7px}
+  .legend .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px}
+  .lstats{margin-top:12px;border-top:1px dashed var(--line);padding-top:8px;
+          display:flex;flex-direction:column;gap:4px;font-variant-numeric:tabular-nums}
+  .lstats div{display:flex;justify-content:space-between}
+  .pulse-head{display:flex;gap:14px;align-items:flex-end;margin-bottom:8px;flex-wrap:wrap}
+  .pulse-head .big{font-size:26px;font-weight:700;font-variant-numeric:tabular-nums}
+  .pulse-head .lab{font-size:8.5px;color:var(--dim);letter-spacing:.12em;text-transform:uppercase}
+  .updown{display:flex;gap:8px;margin-left:auto}
+  .ud{border:1px solid var(--line);border-radius:6px;padding:6px 12px;text-align:center;background:var(--paper)}
+  .ud .p{font-size:15px;font-weight:700}
+  footer{font-size:9.5px;color:var(--dim);padding:6px 4px 0;line-height:1.5}
+  .warn{color:#8a6d1a}
+</style>
+</head>
+<body>
+<div class="frame">
+  <header>
+    <div class="logo">✳</div>
+    <div>
+      <div class="h-title">Pattern Set · Median Path · Consensus Execution</div>
+      <div class="h-id" id="sym">BTC/USDT</div>
+    </div>
+    <div class="spacer"></div>
+    <div class="badge paper" id="modeBadge">● PAPER</div>
+    <div class="badge" id="roundBadge">ROUND —</div>
+    <div class="badge" id="clock">--:--:-- UTC</div>
+  </header>
+
+  <!-- ====================== PNL / EQUITY ====================== -->
+  <div class="grid-top">
+    <div class="panel">
+      <div class="ptitle">EQUITY · <span id="modeLabel">PAPER</span> PNL
+        <span class="pill" id="strategyPill">5MIN CONSENSUS 28/31</span></div>
+      <div class="pnl" id="pnl">$0</div>
+      <div class="statrow">
+        <span class="chip">realizzato · <b id="nTrades">0 trades</b></span>
+        <span class="chip"><b id="wr">— WR</b></span>
+        <span class="chip">Sharpe <b id="sharpe">—</b></span>
+      </div>
+      <div class="kpis">
+        <div class="kpi"><div class="v" id="equity">—</div><div class="l">Equity USD</div></div>
+        <div class="kpi"><div class="v" id="avgWin">—</div><div class="l">Avg PnL/trade</div></div>
+        <div class="kpi"><div class="v" id="dd">—</div><div class="l">Drawdown</div></div>
+        <div class="kpi"><div class="v" id="pos">FLAT</div><div class="l">Posizione</div></div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="ptitle">EQUITY CURVE · SESSIONE</div>
+      <canvas id="eqCanvas" width="440" height="180"></canvas>
+      <div class="metrics" style="margin-top:8px">
+        <div class="mrow"><span class="k">ultima azione</span><span id="action">—</span></div>
+        <div class="mrow"><span class="k">motivo</span><span id="reason" style="max-width:65%;text-align:right">—</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====================== MIROFISH GRAPH ====================== -->
+  <div class="panel">
+    <div class="ptitle">✳ MIROFISH · RELATIONSHIP GRAPH SIMULATION
+      <span class="pill" id="nodesPill">NODES 31</span>
+      <span class="pill" id="signalPill">SIGNAL —</span></div>
+    <div class="graph-wrap">
+      <div class="legend">
+        <div style="letter-spacing:.14em;font-size:8.5px;text-transform:uppercase">Node class</div>
+        <div><span class="dot" style="background:var(--red)"></span>Bear signal</div>
+        <div><span class="dot" style="background:var(--green)"></span>Bull signal</div>
+        <div><span class="dot" style="background:#999"></span>Neutral</div>
+        <div><span class="dot" style="background:#111"></span>Hub prime</div>
+        <div class="lstats">
+          <div><span>BEAR VOTES</span><b id="lv-bear">0</b></div>
+          <div><span>BULL VOTES</span><b id="lv-bull">0</b></div>
+          <div><span>NEUTRAL</span><b id="lv-neu">0</b></div>
+          <div><span>ENTRY ≥</span><b id="lv-entry">28</b></div>
+          <div><span>EXIT &lt;</span><b id="lv-exit">26</b></div>
+        </div>
+      </div>
+      <canvas id="graphCanvas" width="640" height="300"></canvas>
+      <div>
+        <div class="metrics">
+          <div class="mrow"><span class="k">P(UP)</span><span class="g-green" id="pup">—</span></div>
+          <div class="mrow"><span class="k">P(DOWN)</span><span class="g-red" id="pdown">—</span></div>
+          <div class="mrow"><span class="k">EDGE ATTESO</span><span id="edge">—</span></div>
+          <div class="mrow"><span class="k">CONSENSO</span><span id="conf">—</span></div>
+        </div>
+        <div class="ptitle" style="margin-top:12px">Vote distribution</div>
+        <canvas id="histCanvas" width="180" height="70"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====================== BTC 5MIN PULSE ====================== -->
+  <div class="panel">
+    <div class="ptitle">BTC 5MIN PULSE <span class="pill" id="livePill">POLL 2S</span></div>
+    <div class="pulse-head">
+      <div><div class="lab">Prezzo d'ingresso</div><div class="big" id="entryPrice">—</div></div>
+      <div><div class="lab">Prezzo corrente</div><div class="big" id="curPrice">—</div></div>
+      <div class="updown">
+        <div class="ud"><div class="p g-green" id="udUp">—</div><div class="lab">UP votes</div></div>
+        <div class="ud"><div class="p g-red" id="udDown">—</div><div class="lab">DOWN votes</div></div>
+      </div>
+    </div>
+    <canvas id="pulseCanvas" width="1060" height="150"></canvas>
+  </div>
+
+  <footer id="foot">
+    In attesa del motore… Avvia con: <b>python3 run_live.py --dashboard</b> e apri http://localhost:8787
+    <br><span class="warn">Le performance passate o simulate non garantiscono risultati futuri. In modalità paper nessun ordine reale viene inviato.</span>
+  </footer>
+</div>
+
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const fmtUsd = v => (v<0?"-":"") + "$" + Math.abs(v).toLocaleString("en-US",{maximumFractionDigits:0});
+const fmtPx  = v => "$" + v.toLocaleString("en-US",{minimumFractionDigits:2, maximumFractionDigits:2});
+
+const priceHist = [];   // storia dei prezzi vista dalla dashboard
+const eqHist = [];
+let demo = false;
+
+setInterval(()=> {
+  $("clock").textContent = new Date().toISOString().substr(11,8) + " UTC";
+}, 1000);
+
+/* ---------------- rendering ---------------- */
+function drawEquity(){
+  const c = $("eqCanvas"), ctx = c.getContext("2d");
+  ctx.clearRect(0,0,c.width,c.height);
+  if (eqHist.length < 2) return;
+  const min = Math.min(...eqHist), max = Math.max(...eqHist), pad = 12;
+  const sx = (c.width-2*pad)/(eqHist.length-1);
+  const sy = v => c.height-pad - (max===min?0:(v-min)/(max-min))*(c.height-2*pad);
+  ctx.beginPath();
+  eqHist.forEach((v,i)=> i? ctx.lineTo(pad+i*sx, sy(v)) : ctx.moveTo(pad, sy(v)));
+  ctx.strokeStyle = eqHist[eqHist.length-1] >= eqHist[0] ? "#1e8449" : "#c0392b";
+  ctx.lineWidth = 1.6; ctx.stroke();
+  ctx.lineTo(pad+(eqHist.length-1)*sx, c.height-pad); ctx.lineTo(pad, c.height-pad);
+  ctx.closePath(); ctx.fillStyle = "rgba(30,132,73,.08)"; ctx.fill();
+}
+
+/* Grafo: 31 nodi disposti su anelli attorno a un hub centrale.
+   Colore = voto del simulatore (dallo stato reale del motore). */
+const nodeSeeds = Array.from({length:31}, (_,i)=>{
+  const ring = i%3, a = (i*2.399963)%(Math.PI*2);        // golden angle
+  return {ring, a, r0: 60+ring*38 + (i%5)*6, wob: (i%7)/7};
+});
+function drawGraph(ensemble){
+  const c = $("graphCanvas"), ctx = c.getContext("2d");
+  ctx.clearRect(0,0,c.width,c.height);
+  const cx = c.width/2, cy = c.height/2, t = Date.now()/4000;
+  ctx.fillStyle = "#111";
+  ctx.beginPath(); ctx.arc(cx, cy, 13, 0, 7); ctx.fill();
+  ctx.font = "8px monospace"; ctx.fillStyle="#666";
+  ctx.fillText("HUB_PRIME", cx-24, cy+26);
+  nodeSeeds.forEach((s,i)=>{
+    const vote = ensemble[i] ? ensemble[i].vote : 0;
+    const a = s.a + t*(0.05 + s.wob*0.05);
+    const x = cx + Math.cos(a)*s.r0*1.6, y = cy + Math.sin(a)*s.r0*0.72;
+    ctx.strokeStyle = "rgba(0,0,0,.07)"; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(x,y); ctx.stroke();
+    ctx.fillStyle = vote>0 ? "#1e8449" : vote<0 ? "#c0392b" : "#999";
+    const rad = 3.2 + Math.abs(ensemble[i] ? ensemble[i].median_return*900 : 0);
+    ctx.beginPath(); ctx.arc(x, y, Math.min(rad,8), 0, 7); ctx.fill();
+  });
+}
+function drawHist(up, down, neu){
+  const c = $("histCanvas"), ctx = c.getContext("2d");
+  ctx.clearRect(0,0,c.width,c.height);
+  const total = Math.max(up+down+neu, 1), w = 40, gap = 18, base = c.height-16;
+  const bars = [[down,"#c0392b","DOWN"],[neu,"#999","NEU"],[up,"#1e8449","UP"]];
+  bars.forEach(([v,col,lab],i)=>{
+    const h = (v/total)*(c.height-30), x = 14+i*(w+gap);
+    ctx.fillStyle = col; ctx.fillRect(x, base-h, w, h);
+    ctx.fillStyle = "#666"; ctx.font = "8px monospace";
+    ctx.fillText(lab+" "+v, x+2, base+10);
+  });
+}
+function drawPulse(entry){
+  const c = $("pulseCanvas"), ctx = c.getContext("2d");
+  ctx.clearRect(0,0,c.width,c.height);
+  if (priceHist.length < 2) return;
+  const min = Math.min(...priceHist), max = Math.max(...priceHist);
+  const pad = 10, span = Math.max(max-min, 1e-9);
+  const sx = (c.width-2*pad)/(priceHist.length-1);
+  const sy = v => c.height-pad - (v-min)/span*(c.height-2*pad);
+  if (entry > 0 && entry >= min && entry <= max){
+    ctx.strokeStyle = "#8a6d1a"; ctx.setLineDash([4,4]);
+    ctx.beginPath(); ctx.moveTo(pad, sy(entry)); ctx.lineTo(c.width-pad, sy(entry)); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = "#8a6d1a"; ctx.font="9px monospace";
+    ctx.fillText("ENTRY " + fmtPx(entry), c.width-140, sy(entry)-4);
+  }
+  ctx.beginPath();
+  priceHist.forEach((v,i)=> i? ctx.lineTo(pad+i*sx, sy(v)) : ctx.moveTo(pad, sy(v)));
+  ctx.strokeStyle = "#1a1a18"; ctx.lineWidth = 1.4; ctx.stroke();
+  const lx = pad+(priceHist.length-1)*sx, ly = sy(priceHist[priceHist.length-1]);
+  ctx.fillStyle = "#1a1a18"; ctx.beginPath(); ctx.arc(lx, ly, 3, 0, 7); ctx.fill();
+}
+
+/* ---------------- stato dal motore ---------------- */
+function render(s){
+  const pnl = s.equity - s.initial_equity;
+  $("sym").textContent = s.symbol || "BTC/USDT";
+  $("pnl").textContent = fmtUsd(pnl);
+  $("pnl").classList.toggle("neg", pnl < 0);
+  $("equity").textContent = fmtUsd(s.equity);
+  const mode = (s.mode||"paper").toUpperCase();
+  const badge = $("modeBadge");
+  badge.textContent = "● " + mode + (demo ? " · DEMO" : "");
+  badge.className = "badge " + (mode==="LIVE" ? "live" : "paper");
+  $("modeLabel").textContent = mode;
+
+  const trades = s.trades || [];
+  $("nTrades").textContent = trades.length + " trades";
+  if (trades.length){
+    const wins = trades.filter(t=>t.pnl_usd>0).length;
+    $("wr").textContent = Math.round(100*wins/trades.length) + "% WR";
+    const avg = trades.reduce((a,t)=>a+t.pnl_usd,0)/trades.length;
+    $("avgWin").textContent = (avg>=0?"+":"") + fmtUsd(avg);
+  }
+  const dd = s.peak_equity>0 ? (1-s.equity/s.peak_equity)*100 : 0;
+  $("dd").textContent = "-" + dd.toFixed(2) + "%";
+  const side = s.position ? s.position.side : 0;
+  $("pos").textContent = side>0?"LONG":side<0?"SHORT":"FLAT";
+  $("pos").className = "v " + (side>0?"g-green":side<0?"g-red":"");
+  $("action").textContent = s.action || "—";
+  $("reason").textContent = s.reason || "—";
+
+  const v = s.votes || {up:0,down:0,neutral:0,n:31};
+  $("lv-bear").textContent = v.down; $("lv-bull").textContent = v.up;
+  $("lv-neu").textContent = v.neutral;
+  $("lv-entry").textContent = v.entry_threshold; $("lv-exit").textContent = v.exit_threshold;
+  $("udUp").textContent = v.up + "/" + v.n; $("udDown").textContent = v.down + "/" + v.n;
+  $("pup").textContent = (100*(s.p_up ?? .5)).toFixed(1) + "%";
+  $("pdown").textContent = (100*(1-(s.p_up ?? .5))).toFixed(1) + "%";
+  $("edge").textContent = ((s.expected_return||0)*1e4).toFixed(1) + " bps";
+  $("conf").textContent = v.consensus + "/" + v.n;
+  $("signalPill").textContent = "SIGNAL " + (s.action||"").toUpperCase();
+  $("roundBadge").textContent = "ROUND #" + Math.floor((s.ts||0)/300 % 100000);
+  $("curPrice").textContent = s.price ? fmtPx(s.price) : "—";
+  $("entryPrice").textContent = (s.position && s.position.entry_price>0)
+      ? fmtPx(s.position.entry_price) : "—";
+
+  if (s.price){ priceHist.push(s.price); if (priceHist.length>240) priceHist.shift(); }
+  if (s.equity){ eqHist.push(s.equity); if (eqHist.length>240) eqHist.shift(); }
+
+  // Sharpe di sessione (indicativo) dalla curva equity vista dalla dashboard.
+  if (eqHist.length>20){
+    const r=[]; for(let i=1;i<eqHist.length;i++) r.push(eqHist[i]/eqHist[i-1]-1);
+    const m=r.reduce((a,b)=>a+b,0)/r.length;
+    const sd=Math.sqrt(r.reduce((a,b)=>a+(b-m)*(b-m),0)/r.length);
+    $("sharpe").textContent = sd>0 ? (m/sd*Math.sqrt(288*365)).toFixed(2) : "—";
+  }
+
+  drawEquity(); drawGraph(s.ensemble||[]); drawHist(v.up, v.down, v.neutral);
+  drawPulse(s.position ? s.position.entry_price : 0);
+
+  $("foot").innerHTML = demo
+    ? "<b>MODALITÀ DEMO</b>: nessun motore collegato, dati simulati per mostrare il layout. " +
+      "Avvia <b>python3 run_live.py --dashboard</b> per i dati reali." +
+      "<br><span class='warn'>Le performance passate o simulate non garantiscono risultati futuri.</span>"
+    : "Collegato al motore · aggiornamento ogni 2s · file di stato runtime/state.json" +
+      "<br><span class='warn'>Le performance passate o simulate non garantiscono risultati futuri. " +
+      "In modalità paper nessun ordine reale viene inviato.</span>";
+}
+
+/* ---------------- demo fallback ---------------- */
+let demoState = null;
+function demoTick(){
+  if (!demoState){
+    demoState = { ts: Date.now()/1000, price: 75000, equity: 10000, initial_equity: 10000,
+      peak_equity: 10000, mode:"paper", symbol:"BTC/USDT (demo)", action:"flat",
+      reason:"demo: nessun motore collegato", position:{side:0,qty:0,entry_price:0},
+      votes:{up:0,down:0,neutral:31,consensus:0,entry_threshold:28,exit_threshold:26,n:31},
+      ensemble: Array.from({length:31},(_,i)=>({name:"sim_"+i,vote:0,median_return:0})),
+      p_up:.5, expected_return:0, trades:[] };
+  }
+  const s = demoState;
+  s.price *= Math.exp((Math.random()-.5)*0.0015);
+  const bias = Math.sin(Date.now()/30000)*.8 + (Math.random()-.5)*.6;
+  s.ensemble.forEach(e=>{
+    const x = bias + (Math.random()-.5)*1.2;
+    e.vote = x > .45 ? 1 : x < -.45 ? -1 : 0;
+    e.median_return = x/1000;
+  });
+  const up = s.ensemble.filter(e=>e.vote>0).length;
+  const down = s.ensemble.filter(e=>e.vote<0).length;
+  s.votes = {up, down, neutral:31-up-down, consensus:Math.max(up,down),
+             entry_threshold:28, exit_threshold:26, n:31};
+  s.p_up = .5 + bias/4; s.expected_return = bias/2000; s.ts = Date.now()/1000;
+  if (s.position.side===0 && up>=28){ s.position={side:1,qty:s.equity*0.1/s.price,entry_price:s.price}; s.action="open_long"; s.reason="demo: consenso "+up+"/31"; }
+  else if (s.position.side===1 && up<26){
+    const pnl=(s.price-s.position.entry_price)*s.position.qty;
+    s.equity+=pnl; s.trades.push({pnl_usd:pnl});
+    s.position={side:0,qty:0,entry_price:0}; s.action="close"; s.reason="demo: voti "+up+" < 26";
+  } else s.action = s.position.side? "hold":"flat";
+  s.peak_equity = Math.max(s.peak_equity, s.equity);
+  render(s);
+}
+
+async function poll(){
+  try{
+    const r = await fetch("state.json", {cache:"no-store"});
+    if (!r.ok) throw new Error(r.status);
+    const s = await r.json();
+    if (s.error) throw new Error(s.error);
+    demo = false; render(s);
+  }catch(e){
+    demo = true; demoTick();
+  }
+}
+poll(); setInterval(poll, 2000);
+</script>
+</body>
+</html>
