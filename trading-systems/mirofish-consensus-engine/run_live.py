@@ -118,11 +118,28 @@ def main() -> int:
     orch.write_state()
     log.info("primo tick: %s (%s)", report.action, report.reason)
 
+    def emergency_flatten(reason: str) -> None:
+        if broker.position.side != 0:
+            try:
+                rec = broker.close_position(feed.last_price, time.time(), reason)
+                log.critical("posizione chiusa d'emergenza (%s), pnl=%.2f",
+                             reason, rec.pnl_usd)
+            except Exception:
+                log.exception(
+                    "FLATTEN FALLITO (%s): chiudi la posizione MANUALMENTE "
+                    "sull'exchange (side=%d qty=%.8f)",
+                    reason, broker.position.side, broker.position.qty)
+
     # Circuit breaker: dopo N errori consecutivi nel ciclo decisionale il
     # motore smette di far finta di niente — tenta il flatten d'emergenza
     # della posizione e si ferma, invece di restare cieco con rischio aperto.
     MAX_CONSECUTIVE_FAILURES = 5
     failures = 0
+    # Watchdog feed: se non arriva una candela chiusa per 3 intervalli il
+    # motore è cieco (outage exchange/rete): stesso trattamento — flatten e
+    # arresto, perché una posizione senza dati è rischio non gestito.
+    FEED_TIMEOUT_S = 3 * feed.tf_seconds
+    last_candle_wall = time.time()
     try:
         while True:
             time.sleep(cfg.engine.poll_seconds)
@@ -130,9 +147,16 @@ def main() -> int:
                 new_candle = feed.poll()
             except Exception as e:
                 log.error("errore feed dati: %s", e)
-                continue
+                new_candle = None
             if new_candle is None:
+                if time.time() - last_candle_wall > FEED_TIMEOUT_S:
+                    log.critical("watchdog feed: nessuna candela chiusa da "
+                                 "%.0fs (> %.0fs), flatten d'emergenza e arresto",
+                                 time.time() - last_candle_wall, FEED_TIMEOUT_S)
+                    emergency_flatten("feed_watchdog")
+                    return 1
                 continue
+            last_candle_wall = time.time()
             try:
                 report = orch.on_candle(new_candle.ts + feed.tf_seconds,
                                         feed.closes, feed.data_age_seconds)
@@ -148,17 +172,7 @@ def main() -> int:
                 if failures >= MAX_CONSECUTIVE_FAILURES:
                     log.critical("circuit breaker: %d errori consecutivi, "
                                  "flatten d'emergenza e arresto", failures)
-                    if broker.position.side != 0:
-                        try:
-                            rec = broker.close_position(
-                                feed.last_price, time.time(), "circuit_breaker")
-                            log.critical("posizione chiusa d'emergenza, pnl=%.2f",
-                                         rec.pnl_usd)
-                        except Exception:
-                            log.exception(
-                                "FLATTEN FALLITO: chiudi la posizione MANUALMENTE "
-                                "sull'exchange (side=%d qty=%.8f)",
-                                broker.position.side, broker.position.qty)
+                    emergency_flatten("circuit_breaker")
                     return 1
     except KeyboardInterrupt:
         log.info("arresto richiesto dall'utente")

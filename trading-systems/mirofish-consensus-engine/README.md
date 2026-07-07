@@ -83,6 +83,8 @@ mirofish-consensus-engine/
 ├── config.yaml            # tutta la configurazione (default: paper)
 ├── run_live.py            # runner paper/live + dashboard
 ├── run_backtest.py        # backtest su storico scaricato o CSV
+├── run_download.py        # download incrementale storico pluriennale (D2)
+├── run_walkforward.py     # walk-forward validation con purging (D1)
 ├── engine/
 │   ├── config.py          # caricamento e validazione config
 │   ├── data_feed.py       # candele 5m via ccxt o REST pubblico Binance
@@ -91,7 +93,8 @@ mirofish-consensus-engine/
 │   ├── risk.py            # limiti, kill switch, cooldown
 │   ├── broker.py          # PaperBroker / LiveBroker (ccxt)
 │   ├── orchestrator.py    # ciclo decisionale (identico ovunque)
-│   └── backtester.py      # replay event-driven
+│   ├── backtester.py      # replay event-driven
+│   └── walkforward.py     # selezione in-sample / verifica out-of-sample
 ├── dashboard/index.html   # dashboard web (stile del post originale)
 └── tests/test_engine.py   # 21 test
 ```
@@ -113,6 +116,22 @@ python3 run_backtest.py --csv dati.csv   # oppure da CSV: ts_ms,o,h,l,c,v
 ```
 
 Output: rendimento, max drawdown, win rate, Sharpe annualizzato, numero trade.
+
+### 1b. Walk-forward validation (il guard-rail — Fase 1 del piano)
+
+```bash
+python3 run_download.py --days 1460            # scarica ~4 anni (incrementale)
+python3 run_walkforward.py --csv data/BTCUSDT_5m.csv --grid small --fast
+python3 run_walkforward.py --csv data/BTCUSDT_5m.csv --grid medium \
+        --stress-costs 2.0                     # robustezza a costi doppi
+```
+
+Su ogni finestra TRAIN sceglie i parametri migliori da una griglia piccola e
+li valuta SOLO sulla finestra TEST successiva (con embargo pari all'orizzonte
+di previsione, per il purging del leakage). Il report dà: rendimento OOS
+composto, Sharpe OOS, gap overfitting (IS − OOS), stabilità dei parametri e
+un verdetto esplicito. **Regola della casa: qualunque modifica alla strategia
+entra solo se migliora l'out-of-sample qui**, non il backtest semplice.
 
 ### 2. Paper trading + dashboard
 

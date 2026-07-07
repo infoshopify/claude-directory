@@ -216,7 +216,7 @@ decisione: è il dataset che alimenta A3 e le autopsie delle perdite.
 
 | Fase | Voci | Perché in quest'ordine |
 |------|------|------------------------|
-| 1 | D1 + D2 (walk-forward, anni di dati) | senza guard-rail ogni altra modifica è cieca |
+| 1 ✅ | D1 + D2 (walk-forward, anni di dati) — **fatto**: `engine/walkforward.py`, `run_walkforward.py`, `run_download.py` (+ watchdog feed in `run_live.py`) | senza guard-rail ogni altra modifica è cieca |
 | 2 | B1 + B2 (maker, anti-churn) + E1 (websocket) | guadagno certo sui costi, abilita il resto |
 | 3 | C1 (stop server-side) + E2 (riconciliazione) | sicurezza: obbligatorie prima di ogni live |
 | 4 | A2 (regime filter) + C2 (trailing) | miglior rapporto sforzo/impatto sui segnali |
