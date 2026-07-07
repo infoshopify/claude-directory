@@ -281,6 +281,8 @@ function render(s){
   $("lv-bear").textContent = v.down; $("lv-bull").textContent = v.up;
   $("lv-neu").textContent = v.neutral;
   $("lv-entry").textContent = v.entry_threshold; $("lv-exit").textContent = v.exit_threshold;
+  $("nodesPill").textContent = "NODES " + v.n;
+  $("strategyPill").textContent = "5MIN CONSENSUS " + v.entry_threshold + "/" + v.n;
   $("udUp").textContent = v.up + "/" + v.n; $("udDown").textContent = v.down + "/" + v.n;
   $("pup").textContent = (100*(s.p_up ?? .5)).toFixed(1) + "%";
   $("pdown").textContent = (100*(1-(s.p_up ?? .5))).toFixed(1) + "%";

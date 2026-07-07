@@ -185,7 +185,7 @@ class MiroFishEngine:
 
     def _paths_block_bootstrap(self, spec, log_ret, m, h) -> np.ndarray:
         """Ricampionamento a blocchi: preserva l'autocorrelazione a breve."""
-        b = max(1, min(spec.block_size, h))
+        b = max(1, min(spec.block_size, h, len(log_ret)))
         n_blocks = int(np.ceil(h / b))
         max_start = len(log_ret) - b
         starts = self.rng.integers(0, max_start + 1, size=(m, n_blocks))

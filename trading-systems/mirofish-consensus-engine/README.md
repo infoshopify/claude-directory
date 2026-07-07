@@ -70,9 +70,11 @@ candele 5-min (exchange)
 └─────────────────────┘
 ```
 
-Il punto architetturale importante: **backtest, paper e live usano lo stesso
-identico codice decisionale** (`engine/orchestrator.py`). Ciò che validi in
-backtest è ciò che gira in produzione.
+Il punto architetturale importante: **backtest, paper e live condividono lo
+stesso codice decisionale** (`engine/orchestrator.py`) — niente doppie
+implementazioni della strategia. Restano però diversi data feed, latenza ed
+esecuzione reale: è esattamente il divario che il paper trading serve a
+misurare prima del live.
 
 ## Struttura del progetto
 

@@ -58,7 +58,8 @@ def serve_dashboard(port: int, state_file: Path) -> None:
         def log_message(self, *a):
             pass
 
-    with socketserver.ThreadingTCPServer(("", port), Handler) as httpd:
+    # Solo loopback: lo stato del conto non deve essere esposto sulla rete.
+    with socketserver.ThreadingTCPServer(("127.0.0.1", port), Handler) as httpd:
         httpd.allow_reuse_address = True
         httpd.serve_forever()
 
@@ -117,6 +118,11 @@ def main() -> int:
     orch.write_state()
     log.info("primo tick: %s (%s)", report.action, report.reason)
 
+    # Circuit breaker: dopo N errori consecutivi nel ciclo decisionale il
+    # motore smette di far finta di niente — tenta il flatten d'emergenza
+    # della posizione e si ferma, invece di restare cieco con rischio aperto.
+    MAX_CONSECUTIVE_FAILURES = 5
+    failures = 0
     try:
         while True:
             time.sleep(cfg.engine.poll_seconds)
@@ -131,11 +137,29 @@ def main() -> int:
                 report = orch.on_candle(new_candle.ts + feed.tf_seconds,
                                         feed.closes, feed.data_age_seconds)
                 orch.write_state()
+                failures = 0
                 log.info("candela %.2f -> %s | equity %.2f | voti %d↑ %d↓ | %s",
                          new_candle.close, report.action, report.equity,
                          report.votes_up, report.votes_down, report.reason)
             except Exception as e:
-                log.exception("errore nel ciclo decisionale: %s", e)
+                failures += 1
+                log.exception("errore nel ciclo decisionale (%d/%d): %s",
+                              failures, MAX_CONSECUTIVE_FAILURES, e)
+                if failures >= MAX_CONSECUTIVE_FAILURES:
+                    log.critical("circuit breaker: %d errori consecutivi, "
+                                 "flatten d'emergenza e arresto", failures)
+                    if broker.position.side != 0:
+                        try:
+                            rec = broker.close_position(
+                                feed.last_price, time.time(), "circuit_breaker")
+                            log.critical("posizione chiusa d'emergenza, pnl=%.2f",
+                                         rec.pnl_usd)
+                        except Exception:
+                            log.exception(
+                                "FLATTEN FALLITO: chiudi la posizione MANUALMENTE "
+                                "sull'exchange (side=%d qty=%.8f)",
+                                broker.position.side, broker.position.qty)
+                    return 1
     except KeyboardInterrupt:
         log.info("arresto richiesto dall'utente")
         if broker.position.side != 0:

@@ -20,6 +20,16 @@ class ExchangeConfig:
     timeframe: str = "5m"
     testnet: bool = True
 
+    def validate(self) -> None:
+        from .data_feed import TIMEFRAME_SECONDS
+        if self.timeframe not in TIMEFRAME_SECONDS:
+            raise ConfigError(
+                f"timeframe {self.timeframe!r} non supportato: "
+                f"validi {sorted(TIMEFRAME_SECONDS)}"
+            )
+        if "/" not in self.symbol:
+            raise ConfigError(f"symbol {self.symbol!r} non valido (atteso BASE/QUOTE)")
+
 
 @dataclass(frozen=True)
 class EnsembleConfig:
@@ -65,6 +75,16 @@ class RiskConfig:
     stale_data_seconds: int = 90
     allow_short: bool = False
 
+    def validate(self) -> None:
+        if not (0 < self.max_daily_loss_pct <= 1.0):
+            raise ConfigError("max_daily_loss_pct deve essere in (0, 1]")
+        if not (0 < self.max_drawdown_pct <= 1.0):
+            raise ConfigError("max_drawdown_pct deve essere in (0, 1]")
+        if self.max_consecutive_losses < 1 or self.cooldown_candles < 0:
+            raise ConfigError("max_consecutive_losses >= 1 e cooldown_candles >= 0 richiesti")
+        if self.max_trades_per_day < 1 or self.stale_data_seconds <= 0:
+            raise ConfigError("max_trades_per_day >= 1 e stale_data_seconds > 0 richiesti")
+
 
 @dataclass(frozen=True)
 class CostsConfig:
@@ -74,6 +94,10 @@ class CostsConfig:
     @property
     def round_trip_bps(self) -> float:
         return 2.0 * (self.fee_bps + self.slippage_bps)
+
+    def validate(self) -> None:
+        if self.fee_bps < 0 or self.slippage_bps < 0:
+            raise ConfigError("fee_bps e slippage_bps non possono essere negativi")
 
 
 @dataclass(frozen=True)
@@ -100,8 +124,11 @@ class Config:
             raise ConfigError(f"mode deve essere 'paper' o 'live', trovato {self.mode!r}")
         if self.initial_capital_usd <= 0:
             raise ConfigError("capital.initial_usd deve essere positivo")
+        self.exchange.validate()
         self.ensemble.validate()
         self.sizing.validate()
+        self.risk.validate()
+        self.costs.validate()
         if self.mode == "live":
             # Doppio consenso esplicito prima di toccare capitale reale.
             if os.environ.get("MIROFISH_I_UNDERSTAND_THE_RISKS") != "YES":

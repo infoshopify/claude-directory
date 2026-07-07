@@ -100,6 +100,12 @@ class PaperBroker(Broker):
         if side == LONG:
             fill = self.buy(qty, ref_price)
         else:
+            # Short paper a margine 1x: l'esposizione non può superare il cash,
+            # simmetrico al vincolo di capitale del lato long.
+            if notional_usd > self.cash_usd + 1e-9:
+                raise ValueError(
+                    f"margine insufficiente per short: notional {notional_usd:.2f} "
+                    f"> cash {self.cash_usd:.2f}")
             fill = self.sell(qty, ref_price)  # short: vende allo scoperto (paper)
         self.position = Position(side=side, qty=fill.qty, entry_price=fill.price,
                                  entry_ts=ts, entry_votes=votes)
@@ -141,17 +147,36 @@ class LiveBroker(Broker):
         self.position = Position()
         self.trades: list[TradeRecord] = []
 
-    def _order(self, side: str, qty: float) -> Fill:
+    def _order(self, side: str, qty: float,
+               retries: int = 6, retry_wait_s: float = 1.0) -> Fill:
         qty = float(self.x.amount_to_precision(self.symbol, qty))
-        order = self.x.create_market_order(self.symbol, side, qty)
-        # Rilegge l'ordine per ottenere il prezzo medio di fill reale.
-        fetched = self.x.fetch_order(order["id"], self.symbol)
-        price = float(fetched.get("average") or fetched.get("price") or 0.0)
-        fee = 0.0
-        for f in fetched.get("fees") or []:
-            if f.get("cost"):
-                fee += float(f["cost"])
-        return Fill(price, float(fetched.get("filled") or qty), fee)
+        try:
+            order = self.x.create_market_order(self.symbol, side, qty)
+        except Exception as e:
+            raise RuntimeError(f"invio ordine {side} {qty} {self.symbol} fallito: {e}") from e
+
+        # Rilegge l'ordine finché non ha un prezzo medio di fill reale: un Fill
+        # a prezzo 0 corromperebbe PnL, risk state e log. Se l'ordine esiste
+        # sull'exchange ma non riusciamo a leggerlo, meglio fermarsi con un
+        # errore esplicito che proseguire con uno stato falso.
+        last_err: Exception | None = None
+        for _ in range(retries):
+            try:
+                fetched = self.x.fetch_order(order["id"], self.symbol)
+                price = float(fetched.get("average") or fetched.get("price") or 0.0)
+                filled = float(fetched.get("filled") or 0.0)
+                if price > 0 and filled > 0:
+                    fee = sum(float(f["cost"]) for f in (fetched.get("fees") or [])
+                              if f.get("cost"))
+                    return Fill(price, filled, fee)
+            except Exception as e:
+                last_err = e
+            time.sleep(retry_wait_s)
+        raise RuntimeError(
+            f"ordine {order.get('id')} inviato ma fill non confermato dopo "
+            f"{retries} tentativi (ultimo errore: {last_err}). Verifica "
+            f"MANUALMENTE la posizione sull'exchange prima di riavviare."
+        )
 
     def buy(self, qty: float, ref_price: float) -> Fill:
         return self._order("buy", qty)
@@ -159,11 +184,18 @@ class LiveBroker(Broker):
     def sell(self, qty: float, ref_price: float) -> Fill:
         return self._order("sell", qty)
 
-    def equity(self, mark_price: float) -> float:
-        bal = self.x.fetch_balance()
-        base, quote = self.symbol.split("/")
-        return float(bal["total"].get(quote, 0.0)) + \
-            float(bal["total"].get(base, 0.0)) * mark_price
+    def equity(self, mark_price: float, retries: int = 3) -> float:
+        last_err: Exception | None = None
+        for attempt in range(retries):
+            try:
+                bal = self.x.fetch_balance()
+                base, quote = self.symbol.split("/")
+                return float(bal["total"].get(quote, 0.0)) + \
+                    float(bal["total"].get(base, 0.0)) * mark_price
+            except Exception as e:
+                last_err = e
+                time.sleep(1.0 * (attempt + 1))
+        raise RuntimeError(f"fetch_balance fallito dopo {retries} tentativi: {last_err}")
 
     def open_position(self, side: int, notional_usd: float, ref_price: float,
                       ts: float, votes: int) -> Position:

@@ -157,6 +157,13 @@ def test_paper_broker_rejects_over_leverage():
         b.open_position(LONG, 1_000, ref_price=50_000, ts=0, votes=28)
 
 
+def test_paper_broker_rejects_over_leverage_short():
+    from engine.broker import SHORT
+    b = PaperBroker(cash_usd=100, fee_bps=10, slippage_bps=3)
+    with pytest.raises(ValueError):
+        b.open_position(SHORT, 1_000, ref_price=50_000, ts=0, votes=28)
+
+
 # ------------------------------------------------------------ orchestrator --
 def test_orchestrator_full_cycle(cfg):
     """Trend forte -> apre; poi mercato piatto -> il consenso cade -> chiude."""
@@ -184,6 +191,22 @@ def test_config_live_requires_env(tmp_path, cfg, monkeypatch):
     monkeypatch.delenv("MIROFISH_I_UNDERSTAND_THE_RISKS", raising=False)
     text = (HERE / "config.yaml").read_text().replace("mode: paper", "mode: live")
     p = tmp_path / "live.yaml"
+    p.write_text(text)
+    with pytest.raises(ConfigError):
+        load_config(p)
+
+
+def test_config_invalid_timeframe_rejected(tmp_path):
+    text = (HERE / "config.yaml").read_text().replace("timeframe: 5m", "timeframe: 7m")
+    p = tmp_path / "tf.yaml"
+    p.write_text(text)
+    with pytest.raises(ConfigError):
+        load_config(p)
+
+
+def test_config_negative_fees_rejected(tmp_path):
+    text = (HERE / "config.yaml").read_text().replace("fee_bps: 10.0", "fee_bps: -1.0")
+    p = tmp_path / "fees.yaml"
     p.write_text(text)
     with pytest.raises(ConfigError):
         load_config(p)

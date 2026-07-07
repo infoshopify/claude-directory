@@ -49,6 +49,11 @@ def download_history(cfg, days: int) -> np.ndarray:
         rows = [[c.ts * 1000, c.open, c.high, c.low, c.close, c.volume] for c in candles]
 
     arr = np.array(rows, dtype=float)
+    # Scarta l'ultima candela se non ancora chiusa (stesso criterio di
+    # DataFeed._drop_open_candle): una candela parziale nel backtest è
+    # look-ahead bias.
+    if len(arr) and arr[-1, 0] / 1000.0 + feed.tf_seconds > time.time():
+        arr = arr[:-1]
     print(f"scaricate {len(arr)} candele {cfg.exchange.timeframe} di {cfg.exchange.symbol}")
     return arr
 
@@ -65,7 +70,7 @@ def main() -> int:
     cfg = load_config(here / args.config)
 
     if args.csv:
-        ohlcv = np.loadtxt(args.csv, delimiter=",")
+        ohlcv = np.loadtxt(args.csv, delimiter=",", ndmin=2)
     else:
         ohlcv = download_history(cfg, args.days)
 

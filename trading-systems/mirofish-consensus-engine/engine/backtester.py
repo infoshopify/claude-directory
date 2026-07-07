@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from .broker import PaperBroker
+from .broker import FLAT, PaperBroker
 from .config import Config
 from .mirofish import MiroFishEngine
 from .orchestrator import Orchestrator
@@ -66,9 +66,13 @@ def run_backtest(cfg: Config, ohlcv: np.ndarray,
         orch.on_candle(ts_all[i], window[-lookback:], data_age_seconds=0.0)
         equity_curve.append(broker.equity(closes_all[i]))
 
-    # Chiusura forzata a fine periodo per valutare il PnL completo.
-    if broker.position.side != 0:
+    # Chiusura forzata a fine periodo per valutare il PnL completo; l'ultimo
+    # punto della curva viene aggiornato così curva e metriche di sintesi
+    # raccontano lo stesso percorso realizzato.
+    if broker.position.side != FLAT:
         broker.close_position(closes_all[-1], ts_all[-1], "fine_backtest")
+        if equity_curve:
+            equity_curve[-1] = broker.equity(closes_all[-1])
 
     eq = np.array(equity_curve)
     final = broker.equity(closes_all[-1])

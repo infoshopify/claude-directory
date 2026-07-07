@@ -74,8 +74,9 @@ qualcosa.
 
 ## B. Tagliare i costi di esecuzione (impatto: ALTO, certo al 100%)
 
-Questa è l'unica sezione dove il guadagno è **matematicamente garantito**:
-ogni bps risparmiato è un bps di PnL.
+Questa è la sezione con il guadagno più certo: ogni bps di costo risparmiato è
+un bps di PnL, a condizione che fill rate e gestione dei non-fill restino
+sotto controllo (un limit che non viene eseguito ha un costo-opportunità).
 
 ### B1. Esecuzione maker invece che taker — priorità 1
 Ordini **limit post-only** sul best bid/ask invece di market:
