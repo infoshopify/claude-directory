@@ -1,6 +1,7 @@
 """Test del motore: ensemble, consenso, Kelly, risk, broker, backtest end-to-end."""
 
 import sys
+from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
@@ -129,9 +130,18 @@ def test_consecutive_losses_cooldown(cfg):
     assert rm.can_open(10_000, ok_index, 0, UP).allowed
 
 
-def test_short_blocked_on_spot(cfg):
-    rm = RiskManager(cfg.risk, 10_000)
+def test_short_blocked_when_disabled(cfg):
+    # Con allow_short=false (conto spot) uno short deve essere rifiutato.
+    risk = replace(cfg.risk, allow_short=False)
+    rm = RiskManager(risk, 10_000)
     assert not rm.can_open(10_000, 1, 0, DOWN).allowed
+
+
+def test_short_allowed_when_enabled(cfg):
+    # Con allow_short=true (futures) uno short deve essere consentito.
+    risk = replace(cfg.risk, allow_short=True)
+    rm = RiskManager(risk, 10_000)
+    assert rm.can_open(10_000, 1, 0, DOWN).allowed
 
 
 def test_stale_data_blocks(cfg):
@@ -197,7 +207,7 @@ def test_config_live_requires_env(tmp_path, cfg, monkeypatch):
 
 
 def test_config_invalid_timeframe_rejected(tmp_path):
-    text = (HERE / "config.yaml").read_text().replace("timeframe: 5m", "timeframe: 7m")
+    text = (HERE / "config.yaml").read_text().replace("timeframe: 15m", "timeframe: 7m")
     p = tmp_path / "tf.yaml"
     p.write_text(text)
     with pytest.raises(ConfigError):

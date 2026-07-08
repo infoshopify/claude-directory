@@ -105,8 +105,9 @@ def test_insufficient_data_raises(cfg):
 
 def test_train_must_exceed_lookback(cfg):
     ohlcv = make_ohlcv(3000)
+    too_small = cfg.ensemble.lookback_candles - 1  # train <= lookback deve fallire
     with pytest.raises(ValueError):
-        run_walkforward(cfg, ohlcv, train_candles=100, test_candles=200)
+        run_walkforward(cfg, ohlcv, train_candles=too_small, test_candles=200)
 
 
 # ------------------------------------------------------------ end-to-end --

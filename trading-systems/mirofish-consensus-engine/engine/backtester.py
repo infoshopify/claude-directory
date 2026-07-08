@@ -80,8 +80,10 @@ def run_backtest(cfg: Config, ohlcv: np.ndarray,
     max_dd = float(np.max(1.0 - eq / peak)) * 100 if len(eq) else 0.0
 
     rets = np.diff(eq) / eq[:-1]
-    # 288 candele 5-min al giorno, 365 giorni.
-    ann = np.sqrt(288 * 365)
+    # Annualizzazione derivata dal timeframe (candele per anno), non fissa.
+    from .data_feed import TIMEFRAME_SECONDS
+    candles_per_year = 365 * 86400 / TIMEFRAME_SECONDS[cfg.exchange.timeframe]
+    ann = np.sqrt(candles_per_year)
     sharpe = float(np.mean(rets) / np.std(rets) * ann) if len(rets) > 2 and np.std(rets) > 0 else 0.0
 
     wins = sum(1 for t in broker.trades if t.pnl_usd > 0)

@@ -203,6 +203,8 @@ dell'orchestratore, validazioni di config e backtest end-to-end.
 
 | Parametro | Default | Significato |
 |---|---|---|
+| `exchange.timeframe` | 15m | timeframe candele (nativo sugli exchange) |
+| `risk.allow_short` | true | buy su rialzo, **sell (short)** su ribasso; live richiede futures |
 | `ensemble.n_simulators` | 31 | simulatori paralleli |
 | `ensemble.entry_votes` | 28 | voti concordi minimi per aprire |
 | `ensemble.exit_votes` | 26 | sotto questa soglia la posizione si chiude |

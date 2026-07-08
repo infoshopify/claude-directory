@@ -141,6 +141,7 @@ class WalkForwardReport:
     embargo_candles: int
     cost_multiplier: float
     elapsed_seconds: float
+    candles_per_year: float = 288 * 365   # default 5m; sovrascritto dal driver
 
     # -- aggregati out-of-sample ---------------------------------------- #
     @property
@@ -182,7 +183,7 @@ class WalkForwardReport:
         sd = float(np.std(rets))
         if sd == 0:
             return 0.0
-        return float(np.mean(rets) / sd * np.sqrt(288 * 365))
+        return float(np.mean(rets) / sd * np.sqrt(self.candles_per_year))
 
     @property
     def oos_max_drawdown_pct(self) -> float:
@@ -366,6 +367,8 @@ def run_walkforward(
                   f"{best_res.total_return_pct:+.2f}% -> OOS "
                   f"{test_res.total_return_pct:+.2f}%", flush=True)
 
+    from .data_feed import TIMEFRAME_SECONDS
+    cpy = 365 * 86400 / TIMEFRAME_SECONDS[base.exchange.timeframe]
     return WalkForwardReport(
         windows=windows,
         grid_size=len(combos),
@@ -374,4 +377,5 @@ def run_walkforward(
         embargo_candles=embargo,
         cost_multiplier=cost_multiplier,
         elapsed_seconds=time.time() - t0,
+        candles_per_year=cpy,
     )
