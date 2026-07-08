@@ -8,8 +8,8 @@ si fermano a 24-26, sotto la soglia di 28) o se qualcosa non va (voti sempre a
 zero = bug o dati piatti).
 
 Uso:
-    python3 run_diagnostic.py --csv data/BTCUSDT_5m.csv
-    python3 run_diagnostic.py --csv data/BTCUSDT_5m.csv --entry 26   # simula soglia più bassa
+    python3 run_diagnostic.py --csv data/BTCUSDT_15m.csv
+    python3 run_diagnostic.py --csv data/BTCUSDT_15m.csv --entry 26   # simula soglia più bassa
 """
 
 from __future__ import annotations
@@ -41,7 +41,7 @@ def main() -> int:
                     help="soglia da simulare (default: quella in config)")
     ap.add_argument("--fast", action="store_true")
     ap.add_argument("--max-candles", type=int, default=2000,
-                    help="limita le candele analizzate (default 2000, ~7 giorni)")
+                    help="limita le candele analizzate (default 2000, ~21 giorni a 15m)")
     args = ap.parse_args()
 
     cfg = load_config(HERE / args.config)
@@ -87,7 +87,7 @@ def main() -> int:
         print(f"  {bucket:2d}-{bucket+1:2d} voti | {bar(c, n_eval)} "
               f"{c:5d} ({100*c/n_eval:4.1f}%){marker}")
 
-    print(f"\nRIEPILOGO")
+    print("\nRIEPILOGO")
     print(f"  candele analizzate:       {n_eval}")
     print(f"  consenso massimo visto:   {max_consensus_seen}/{n_total}")
     print(f"  candele sopra soglia {entry}: {would_enter} "

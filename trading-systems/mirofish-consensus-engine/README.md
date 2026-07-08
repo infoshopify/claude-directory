@@ -1,11 +1,13 @@
 # MiroFish Consensus Engine
 
-Sistema di trading algoritmico su candele **BTC 5 minuti** basato su **consenso
+Sistema di trading algoritmico su candele **BTC 15 minuti** basato su **consenso
 d'ensemble**: 31 simulatori Monte Carlo indipendenti votano la direzione attesa
-del prezzo; il trade parte **solo quando almeno 28 su 31 sono d'accordo** e
-viene chiuso all'istante appena i voti a favore scendono **sotto 26**. La
-taglia della posizione segue il **criterio di Kelly frazionario**, dentro un
-risk management con limiti giornalieri, kill switch su drawdown e cooldown.
+del prezzo; il trade parte **solo quando almeno 28 su 31 sono d'accordo** (buy su
+consenso rialzista, sell/short su ribassista) e viene chiuso all'istante appena
+i voti a favore scendono **sotto 26**. La taglia della posizione segue il
+**criterio di Kelly frazionario**, dentro un risk management con limiti
+giornalieri, kill switch su drawdown e cooldown. Il timeframe è configurabile
+(`exchange.timeframe`): 15m di default, ma 5m/1h/4h con un cambio in config.
 
 Include: motore decisionale, backtester event-driven, paper trading, modalità
 live via ccxt (protetta da doppio consenso esplicito), dashboard web in tempo
@@ -24,9 +26,9 @@ pena dirlo chiaramente:
 - **Nessun software garantisce profitti.** Il consenso di 31 modelli riduce il
   rischio di dipendere da un singolo modello sbagliato, ma i 31 modelli
   guardano tutti gli stessi dati: il consenso NON crea edge dal nulla.
-- Sul BTC a 5 minuti i costi (fees + slippage) divorano la maggior parte degli
-  edge apparenti. Per questo il motore **rifiuta di votare** una direzione se
-  l'edge atteso non supera i costi di andata e ritorno.
+- Sul BTC intraday (15m o meno) i costi (fees + slippage) divorano la maggior
+  parte degli edge apparenti. Per questo il motore **rifiuta di votare** una
+  direzione se l'edge atteso non supera i costi di andata e ritorno.
 - Il default è **paper trading**: zero ordini reali. La modalità live richiede
   di modificare la config **e** di impostare una variabile d'ambiente di
   consenso esplicito. Usa solo capitale che puoi permetterti di perdere
@@ -42,7 +44,7 @@ pena dirlo chiaramente:
 ## Architettura
 
 ```
-candele 5-min (exchange) 
+candele 15-min (exchange) 
         │
         ▼
 ┌─────────────────────┐   31 simulatori diversi tra loro:
@@ -87,7 +89,7 @@ mirofish-consensus-engine/
 ├── run_walkforward.py     # walk-forward validation con purging (D1)
 ├── engine/
 │   ├── config.py          # caricamento e validazione config
-│   ├── data_feed.py       # candele 5m via ccxt o REST pubblico Binance
+│   ├── data_feed.py       # candele via ccxt o REST pubblico Binance
 │   ├── mirofish.py        # ensemble 31 simulatori Monte Carlo
 │   ├── kelly.py           # sizing Kelly frazionario
 │   ├── risk.py            # limiti, kill switch, cooldown
@@ -111,7 +113,7 @@ pip install -r requirements.txt
 ### 1. Backtest
 
 ```bash
-python3 run_backtest.py --days 30        # scarica 30 giorni di BTC/USDT 5m
+python3 run_backtest.py --days 30        # scarica 30 giorni di BTC/USDT (timeframe da config)
 python3 run_backtest.py --csv dati.csv   # oppure da CSV: ts_ms,o,h,l,c,v
 ```
 
@@ -121,10 +123,10 @@ Output: rendimento, max drawdown, win rate, Sharpe annualizzato, numero trade.
 
 ```bash
 python3 run_download.py --days 1460            # scarica ~4 anni (incrementale)
-python3 run_walkforward.py --csv data/BTCUSDT_5m.csv --grid small --fast
-python3 run_walkforward.py --csv data/BTCUSDT_5m.csv --grid medium \
+python3 run_walkforward.py --csv data/BTCUSDT_15m.csv --grid small --fast
+python3 run_walkforward.py --csv data/BTCUSDT_15m.csv --grid medium \
         --stress-costs 2.0                     # robustezza a costi doppi
-python3 run_walkforward.py --csv data/BTCUSDT_5m.csv --jobs 8   # 8 core
+python3 run_walkforward.py --csv data/BTCUSDT_15m.csv --jobs 8   # 8 core
 ```
 
 **Prestazioni**: il motore Monte Carlo è ottimizzato (un solo ordinamento per
@@ -145,7 +147,7 @@ entra solo se migliora l'out-of-sample qui**, non il backtest semplice.
 ### 1c. Diagnostica "perché non fa operazioni?"
 
 ```bash
-python3 run_diagnostic.py --csv data/BTCUSDT_5m.csv
+python3 run_diagnostic.py --csv data/BTCUSDT_15m.csv
 ```
 
 Poche o zero operazioni con la soglia 28/31 è il comportamento previsto: 28
@@ -163,7 +165,7 @@ python3 run_live.py --dashboard
 # apri http://localhost:8787
 ```
 
-Il motore scarica 24h di candele, poi a ogni candela 5-min chiusa fa girare i
+Il motore scarica 24h di candele, poi a ogni candela chiusa fa girare i
 31 simulatori e decide. La dashboard mostra equity, PnL, il grafo dei 31 nodi
 votanti (verde=bull, rosso=bear), le probabilità dell'ensemble e il "pulse" del
 prezzo. Aprendo `dashboard/index.html` senza motore parte una **modalità demo**
