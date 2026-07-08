@@ -52,7 +52,12 @@ def main() -> int:
     ap.add_argument("--stress-costs", type=float, default=1.0)
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--min-trades", type=int, default=3)
+    ap.add_argument("--jobs", type=int, default=0,
+                    help="processi paralleli (0 = tutti i core disponibili)")
     args = ap.parse_args()
+
+    import os
+    jobs = args.jobs if args.jobs > 0 else (os.cpu_count() or 1)
 
     cfg = load_config(HERE / args.config)
     if args.fast:
@@ -67,7 +72,7 @@ def main() -> int:
     print(f"storico: {len(ohlcv)} candele (~{days_available:.0f} giorni) | "
           f"griglia {args.grid} ({len(GRIDS[args.grid])} config) | "
           f"train {train_c} / test {test_c} candele | "
-          f"costi x{args.stress_costs:.1f}"
+          f"costi x{args.stress_costs:.1f} | {jobs} core"
           + (" | FAST (64 percorsi)" if args.fast else ""))
     if days_available < 180:
         print("NOTA: meno di 6 mesi di dati — il risultato avrà poco valore "
@@ -83,6 +88,7 @@ def main() -> int:
         min_trades=args.min_trades,
         cost_multiplier=args.stress_costs,
         progress=True,
+        jobs=jobs,
     )
 
     print("\n=== WALK-FORWARD REPORT ===")

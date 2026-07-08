@@ -124,7 +124,16 @@ python3 run_download.py --days 1460            # scarica ~4 anni (incrementale)
 python3 run_walkforward.py --csv data/BTCUSDT_5m.csv --grid small --fast
 python3 run_walkforward.py --csv data/BTCUSDT_5m.csv --grid medium \
         --stress-costs 2.0                     # robustezza a costi doppi
+python3 run_walkforward.py --csv data/BTCUSDT_5m.csv --jobs 8   # 8 core
 ```
+
+**Prestazioni**: il motore Monte Carlo è ottimizzato (un solo ordinamento per
+statistiche invece di tre, varianza EWMA in cache per lambda): ~3,5× più veloce
+per singolo backtest. Il walk-forward distribuisce i backtest indipendenti su
+più core con `--jobs` (default: tutti) — con seed fissi il risultato è identico
+al sequenziale, cambia solo il tempo. Su 4 core: ~13× complessivo rispetto alla
+prima versione. Per l'esplorazione usa `--fast` (64 percorsi invece di 256);
+la conferma finale va fatta senza `--fast`.
 
 Su ogni finestra TRAIN sceglie i parametri migliori da una griglia piccola e
 li valuta SOLO sulla finestra TEST successiva (con embargo pari all'orizzonte

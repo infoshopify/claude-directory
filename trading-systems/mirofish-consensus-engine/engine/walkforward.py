@@ -26,12 +26,29 @@ il futuro, ed è esattamente ciò che questo schema impedisce.
 from __future__ import annotations
 
 import time
+from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass, field, replace
 
 import numpy as np
 
 from .backtester import BacktestResult, run_backtest
 from .config import Config
+
+
+# Worker a livello di modulo (deve essere picklable per il ProcessPool).
+def _backtest_task(args) -> BacktestResult:
+    cfg, ohlcv, seed = args
+    return run_backtest(cfg, ohlcv, seed=seed)
+
+
+def _map_tasks(tasks: list, jobs: int) -> list[BacktestResult]:
+    """Esegue i backtest in sequenza (jobs<=1) o su più processi (jobs>1)."""
+    if not tasks:
+        return []
+    if jobs <= 1 or len(tasks) == 1:
+        return [_backtest_task(t) for t in tasks]
+    with ProcessPoolExecutor(max_workers=jobs) as ex:
+        return list(ex.map(_backtest_task, tasks))
 
 # ---------------------------------------------------------------- griglie --
 # Le griglie sono volutamente piccole: ogni combinazione in più è un grado di
@@ -269,8 +286,14 @@ def run_walkforward(
     min_trades: int = 3,
     cost_multiplier: float = 1.0,
     progress: bool = False,
+    jobs: int = 1,
 ) -> WalkForwardReport:
-    """Esegue il walk-forward completo su un array OHLCV (N, 6)."""
+    """Esegue il walk-forward completo su un array OHLCV (N, 6).
+
+    Con jobs > 1 i backtest indipendenti (griglia x finestre) vengono distribuiti
+    su più processi. I seed sono fissi per task, quindi il risultato è identico
+    a quello sequenziale: cambia solo il tempo, non i numeri.
+    """
     t0 = time.time()
     combos = GRIDS[grid] if isinstance(grid, str) else grid
     if not combos:
@@ -288,31 +311,49 @@ def run_walkforward(
     if n < needed:
         raise ValueError(f"servono almeno {needed} candele, trovate {n}")
 
-    windows: list[WindowResult] = []
-    # La prima finestra parte lasciando lookback candele di warmup al train.
+    # Definisce le finestre (train/test) scorrevoli senza sovrapposizione.
+    bounds = []
     t_start = lookback
-    w_idx = 0
     while t_start + train_candles + embargo + test_candles <= n:
         train_lo, train_hi = t_start, t_start + train_candles
         test_lo = train_hi + embargo
-        test_hi = test_lo + test_candles
+        bounds.append((train_lo, train_hi, test_lo, test_lo + test_candles))
+        t_start += test_candles
 
-        # -- selezione sulla finestra train (stesso seed per confronto equo) --
-        best_combo, best_res, best_score = None, None, -np.inf
+    # Costruisce la lista di TUTTI i backtest di selezione (finestra x combo):
+    # sono indipendenti, quindi parallelizzabili in un colpo solo.
+    train_tasks = []
+    for (train_lo, train_hi, _, _) in bounds:
+        sl = ohlcv[train_lo - lookback: train_hi]
         for combo in combos:
-            c = apply_overrides(base, combo)
-            res = run_backtest(c, ohlcv[train_lo - lookback: train_hi], seed=seed)
-            s = score(res, min_trades)
+            train_tasks.append((apply_overrides(base, combo), sl, seed))
+
+    train_results = _map_tasks(train_tasks, jobs)
+
+    # Sceglie la combo migliore per finestra e prepara la valutazione OOS.
+    g = len(combos)
+    oos_tasks = []
+    chosen_per_window = []
+    for w, (train_lo, train_hi, test_lo, test_hi) in enumerate(bounds):
+        best_i, best_score = 0, -np.inf
+        for j in range(g):
+            s = score(train_results[w * g + j], min_trades)
             if s > best_score:
-                best_combo, best_res, best_score = combo, res, s
+                best_i, best_score = j, s
+        best_combo = combos[best_i]
+        chosen_per_window.append((best_combo, best_score,
+                                  train_results[w * g + best_i]))
+        oos_tasks.append((apply_overrides(base, best_combo),
+                          ohlcv[test_lo - lookback: test_hi], seed + 1))
 
-        # -- valutazione out-of-sample, una sola volta, mai riottimizzata --
-        chosen_cfg = apply_overrides(base, best_combo)
-        test_res = run_backtest(chosen_cfg, ohlcv[test_lo - lookback: test_hi],
-                                seed=seed + 1)
+    oos_results = _map_tasks(oos_tasks, jobs)
 
+    windows: list[WindowResult] = []
+    for w, (train_lo, train_hi, test_lo, test_hi) in enumerate(bounds):
+        best_combo, best_score, best_res = chosen_per_window[w]
+        test_res = oos_results[w]
         windows.append(WindowResult(
-            index=w_idx,
+            index=w,
             train_range=(train_lo, train_hi),
             test_range=(test_lo, test_hi),
             chosen=best_combo,
@@ -321,11 +362,9 @@ def run_walkforward(
             test=test_res,
         ))
         if progress:
-            print(f"  W{w_idx:02d}: {best_combo} | IS "
+            print(f"  W{w:02d}: {best_combo} | IS "
                   f"{best_res.total_return_pct:+.2f}% -> OOS "
                   f"{test_res.total_return_pct:+.2f}%", flush=True)
-        t_start += test_candles
-        w_idx += 1
 
     return WalkForwardReport(
         windows=windows,

@@ -80,6 +80,23 @@ def test_windows_never_overlap_and_respect_embargo(cfg):
         assert b.test_range[0] >= a.test_range[1]
 
 
+def test_parallel_matches_sequential(cfg):
+    """jobs>1 deve dare risultati identici a jobs=1 (seed fissi per task)."""
+    lookback = cfg.ensemble.lookback_candles
+    n = lookback + 3 * 400 + 200
+    ohlcv = make_ohlcv(n, seed=5, drift=0.0008)
+    seq = run_walkforward(cfg, ohlcv, train_candles=400, test_candles=200,
+                          grid="small", seed=11, jobs=1)
+    par = run_walkforward(cfg, ohlcv, train_candles=400, test_candles=200,
+                          grid="small", seed=11, jobs=2)
+    assert len(seq.windows) == len(par.windows)
+    assert seq.oos_return_pct == pytest.approx(par.oos_return_pct, rel=1e-12)
+    assert seq.oos_trades == par.oos_trades
+    for a, b in zip(seq.windows, par.windows):
+        assert a.chosen == b.chosen
+        assert a.test_return_pct == pytest.approx(b.test_return_pct, rel=1e-12)
+
+
 def test_insufficient_data_raises(cfg):
     ohlcv = make_ohlcv(cfg.ensemble.lookback_candles + 100)
     with pytest.raises(ValueError):
