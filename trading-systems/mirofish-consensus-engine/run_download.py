@@ -39,7 +39,7 @@ def load_cache(path: Path) -> np.ndarray | None:
 def download(cfg, days: int, out: Path) -> np.ndarray:
     feed = DataFeed(cfg.exchange.id, cfg.exchange.symbol,
                     cfg.exchange.timeframe, cfg.ensemble.lookback_candles)
-    if feed._ccxt is None:
+    if not feed.has_ccxt:
         raise SystemExit(
             "ccxt è richiesto per il download paginato dello storico "
             "(pip install ccxt). Il fallback REST copre solo ~1000 candele."
@@ -61,8 +61,7 @@ def download(cfg, days: int, out: Path) -> np.ndarray:
 
     fetched = 0
     while since < now_ms:
-        batch = feed._ccxt.fetch_ohlcv(cfg.exchange.symbol, cfg.exchange.timeframe,
-                                       since=since, limit=1000)
+        batch = feed.fetch_ohlcv_since(since, limit=1000)
         if not batch:
             break
         rows.extend([[float(v) for v in r[:6]] for r in batch])

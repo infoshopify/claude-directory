@@ -70,13 +70,13 @@ def test_windows_never_overlap_and_respect_embargo(cfg):
                           embargo_candles=12, grid=[GRIDS["small"][0]], seed=7)
     assert len(rep.windows) >= 2
     for w in rep.windows:
-        train_lo, train_hi = w.train_range
+        _, train_hi = w.train_range
         test_lo, test_hi = w.test_range
         # embargo rispettato: il test inizia dopo train_end + embargo
         assert test_lo == train_hi + 12
         assert test_hi > test_lo
     # le finestre di test scorrono senza sovrapporsi
-    for a, b in zip(rep.windows, rep.windows[1:]):
+    for a, b in zip(rep.windows, rep.windows[1:], strict=False):
         assert b.test_range[0] >= a.test_range[1]
 
 
@@ -92,7 +92,7 @@ def test_parallel_matches_sequential(cfg):
     assert len(seq.windows) == len(par.windows)
     assert seq.oos_return_pct == pytest.approx(par.oos_return_pct, rel=1e-12)
     assert seq.oos_trades == par.oos_trades
-    for a, b in zip(seq.windows, par.windows):
+    for a, b in zip(seq.windows, par.windows, strict=True):
         assert a.chosen == b.chosen
         assert a.test_return_pct == pytest.approx(b.test_return_pct, rel=1e-12)
 

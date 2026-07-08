@@ -334,7 +334,7 @@ def run_walkforward(
     g = len(combos)
     oos_tasks = []
     chosen_per_window = []
-    for w, (train_lo, train_hi, test_lo, test_hi) in enumerate(bounds):
+    for w, (_, _, test_lo, test_hi) in enumerate(bounds):
         best_i, best_score = 0, -np.inf
         for j in range(g):
             s = score(train_results[w * g + j], min_trades)

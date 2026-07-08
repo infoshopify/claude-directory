@@ -142,6 +142,20 @@ composto, Sharpe OOS, gap overfitting (IS − OOS), stabilità dei parametri e
 un verdetto esplicito. **Regola della casa: qualunque modifica alla strategia
 entra solo se migliora l'out-of-sample qui**, non il backtest semplice.
 
+### 1c. Diagnostica "perché non fa operazioni?"
+
+```bash
+python3 run_diagnostic.py --csv data/BTCUSDT_5m.csv
+```
+
+Poche o zero operazioni con la soglia 28/31 è il comportamento previsto: 28
+modelli diversi si mettono d'accordo di rado. Questo strumento lo rende visibile
+— mostra l'istogramma del consenso massimo raggiunto per candela, così vedi se
+il motore vota regolarmente ma resta sotto soglia (normale) oppure se il
+consenso è sempre zero (allora c'è un problema di dati). Utile per capire il
+sistema; **la scelta della soglia va fatta col walk-forward, non abbassandola
+qui per "vedere" trade**.
+
 ### 2. Paper trading + dashboard
 
 ```bash

@@ -58,6 +58,22 @@ class DataFeed:
         return [Candle(r[0] / 1000.0, float(r[1]), float(r[2]),
                        float(r[3]), float(r[4]), float(r[5])) for r in rows]
 
+    @property
+    def has_ccxt(self) -> bool:
+        """True se ccxt è disponibile (necessario per il download paginato)."""
+        return self._ccxt is not None
+
+    def fetch_ohlcv_since(self, since_ms: int, limit: int = 1000) -> list[list]:
+        """Pagina OHLCV grezza a partire da un timestamp (ms). Richiede ccxt.
+
+        API pubblica per il downloader storico: evita di accoppiarlo ai
+        dettagli interni del client. Ritorna righe [ts_ms, o, h, l, c, v].
+        """
+        if self._ccxt is None:
+            raise RuntimeError("download paginato richiede ccxt (pip install ccxt)")
+        return self._ccxt.fetch_ohlcv(self.symbol, self.timeframe,
+                                      since=since_ms, limit=limit)
+
     def _binance_rest(self, limit: int) -> list[list]:
         symbol = self.symbol.replace("/", "")
         qs = urllib.parse.urlencode({"symbol": symbol, "interval": self.timeframe,
