@@ -1,0 +1,59 @@
+# =============================================================================
+# MiroFish Consensus Engine — configurazione
+# =============================================================================
+# ATTENZIONE: mode "live" opera con CAPITALE REALE. Il default è "paper".
+# Per passare a live servono ENTRAMBI:
+#   1. mode: live in questo file
+#   2. variabile d'ambiente MIROFISH_I_UNDERSTAND_THE_RISKS=YES
+# =============================================================================
+
+mode: paper                 # paper | live
+
+exchange:
+  id: binance               # qualsiasi exchange supportato da ccxt
+  symbol: BTC/USDT
+  timeframe: 15m            # 15m è nativo sugli exchange (nessuna candela sintetica)
+  testnet: true             # per live: usa il testnet finché non sei pronto
+  # Le API key NON vanno qui: vanno nelle variabili d'ambiente
+  #   MIROFISH_API_KEY / MIROFISH_API_SECRET
+
+capital:
+  initial_usd: 10000.0      # capitale iniziale (paper) / cap massimo impegnabile (live)
+
+ensemble:
+  n_simulators: 31          # numero di simulatori paralleli
+  entry_votes: 28           # il trade parte solo con >= 28 voti concordi su 31
+  exit_votes: 26            # sotto 26 voti a favore la posizione viene chiusa subito
+  paths_per_simulator: 256  # percorsi Monte Carlo per simulatore
+  horizon_candles: 4        # orizzonte di previsione (4 x 15min = 1 ora)
+  lookback_candles: 96      # storico usato per calibrare (96 x 15min = 24 ore)
+  vote_threshold_bps: 12.0  # soglia minima di edge atteso (in bps) per votare UP/DOWN
+                            # deve superare i costi di andata+ritorno (fees+slippage)
+  seed: null                # null = non deterministico; intero = riproducibile
+
+sizing:
+  kelly_fraction: 0.25      # frazione di Kelly (Kelly pieno = 1.0; istituzionale: 0.1-0.5)
+  max_position_pct: 0.20    # massimo 20% del capitale per singola posizione
+  min_notional_usd: 25.0    # sotto questa taglia il trade viene scartato
+
+risk:
+  max_daily_loss_pct: 0.03      # -3% in un giorno -> stop fino al giorno dopo
+  max_drawdown_pct: 0.10        # -10% dal picco -> kill switch permanente (riavvio manuale)
+  max_consecutive_losses: 5     # 5 perdite di fila -> cooldown
+  cooldown_candles: 8           # durata cooldown (8 x 15min = 2 ore)
+  max_trades_per_day: 20
+  stale_data_seconds: 300       # se i dati sono più vecchi di così, non si opera
+  allow_short: true             # buy su consenso rialzista, SELL su ribassista.
+                                # ATTENZIONE: in LIVE lo short richiede un conto
+                                # futures/margin (leva -> rischio di liquidazione).
+                                # In backtest/paper è simulato senza leva.
+
+costs:
+  fee_bps: 10.0             # 0.10% taker fee per lato
+  slippage_bps: 3.0         # stima slippage per lato
+
+engine:
+  poll_seconds: 5           # frequenza di controllo nuove candele
+  state_file: runtime/state.json   # snapshot per la dashboard
+  log_file: runtime/engine.log
+  trades_file: runtime/trades.csv
